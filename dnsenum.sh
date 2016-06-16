@@ -51,10 +51,12 @@ if [ ${DOMAIN} = "0" ]; then
 	exit 0
 fi
 
-REGEX="(.+)\\s+([A-Z0-9]+)\\s+([a-zA-Z0-9\.\-]+)"
-RANDOMSD=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 20 | head -n 1)
+REGEX="(.+)[[:space:]]+([A-Z0-9]+)[[:space:]]+([a-zA-Z0-9\.\-]+)"
+#RANDOMSD=$(cat /dev/urandom | tr -dc 'a-zA-Z0-9' | fold -w 20 | head -n 1)
+RANDOMSD=$(perl -pe 'tr/A-Za-z0-9//dc;' < /dev/urandom | head -c 20; echo)
 WILDCARD=RANDOMSD
 DNSTEST=$(dig +noall +answer +nottlid +nocl ${RANDOMSD}.${DOMAIN}${DNSSERVER} | head -1)
+STARTRES=$(dig +noall +answer +nottlid +nocl ${DOMAIN}${DNSSERVER} | head -1)
 
 if [[ ${DNSTEST} =~ $REGEX ]]; then
 	WILDCARD="${BASH_REMATCH[3]}"
@@ -63,6 +65,20 @@ if [[ ${DNSTEST} =~ $REGEX ]]; then
 fi
 
 echo "+"
+
+if [[ ${STARTRES} =~ $REGEX ]]; then
+	if [ ${RESULT} = "0" ] || [ ${RESULT} = ${BASH_REMATCH[3]} ]; then
+		if [ $HTTPCHECK -eq 1 ]; then
+			echo -en "trying to connect to http://${DOMAIN} ..."
+			CURL=$(curl -s -I --connect-timeout 2 "http://${DOMAIN}" | grep -i "server:" | sed -e 's/Server: //g')
+			echo -en "\033[99D"
+			echo -en "\033[K"
+		fi
+
+		printf "%20s | %-10s | %-30s | %-10s" "${DOMAIN}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${CURL}"
+		echo ""
+	fi
+fi
 
 while read line; do
 	DNSRES=$(dig +noall +answer +nottlid +nocl ${line}.${DOMAIN}${DNSSERVER} | head -1)
