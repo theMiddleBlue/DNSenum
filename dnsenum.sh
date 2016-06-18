@@ -42,7 +42,7 @@ while getopts :hcvd:n:r: OPTION; do
 			echo "+ -f <file>        Subdomain list file to use for test"
 			echo "+ -n <dns server>  DNS Server to use for query"
 			echo "+ -c               Check for HTTP Server banner"
-			echo "+ -v               Check URL on VirusTotal"
+			echo "+ -v               Check domain on VirusTotal"
 			echo "+ -r <result>      Show only result that match <result>"
 			echo -en "+\n\n"
 			exit 0

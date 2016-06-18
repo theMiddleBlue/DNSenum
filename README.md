@@ -60,5 +60,5 @@ Example using `-v` that check the domain on VirusTotal
              waf.red | A          | 188.166.133.184                |           
                  www | A          | 188.166.133.184                |           
                 blog | CNAME      | node1.waf.red.                 |
-...
+trying www2...
 ```
