@@ -13,6 +13,7 @@ SHODAN="apikey-here"
 source ${MY_PATH}/inc/bash_colors.sh
 
 echo -en "\n+\n"
+echo "+ DNSenum by theMiddle: https://github.com/theMiddleBlue/DNSenum"
 while getopts :hcvd:n:r:s: OPTION; do
 	case $OPTION in
 		d)
