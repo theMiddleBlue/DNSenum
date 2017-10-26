@@ -126,20 +126,20 @@ if [ "${SHODAN}" != "apikey-here" ]; then
 	done
 	echo -en "\033[K"
 	echo -en "\033[999D"
-	echo "+"
-	echo "+ End Results from Shodan."
-	echo "+"
+	clr_red "+"
+	clr_red "+ End Results from Shodan."
+	clr_red "+"
 	echo ""
 
 fi
 
 if [ $VIRUSTOTAL -eq 1 ]; then
-	echo "+"
-	echo "+ Querying VirusTotal..."
+	clr_red "+"
+	clr_red "+ Querying VirusTotal..."
 	VTCURLPRE=$(curl -s -c vtcookie.txt -b vtcookie.txt -A "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36" "https://www.virustotal.com/en-gb/domain/${DOMAIN}/information/")
 	VTCURL=$(curl -s -c vtcookie.txt -b vtcookie.txt -A "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36" "https://www.virustotal.com/en-gb/domain/${DOMAIN}/information/" | egrep "\<a target\=.\_blank. href\=..en\-gb.domain" | awk 'BEGIN{FS="/"}{print $4}')
-	echo "+ Result from VirusTotal:"
-	echo "+"
+	clr_red "+ Result from VirusTotal:"
+	clr_red "+"
 	for element in $VTCURL
 	do
 		addelem=$(echo "${element}" | sed -e "s/.${DOMAIN}//g")
@@ -176,15 +176,15 @@ if [ $VIRUSTOTAL -eq 1 ]; then
 		fi
 
 	done
-	echo "+"
-	echo "+ End Results from VirusTotal."
-	echo "+"
+	clr_red "+"
+	clr_red "+ End Results from VirusTotal."
+	clr_red "+"
 	echo ""
 fi
 
-echo "+"
-echo "+ Start enumeration from file..."
-echo "+"
+clr_red "+"
+clr_red "+ Start enumeration from file..."
+clr_red "+"
 if [[ ${STARTRES} =~ $REGEX ]]; then
 	if [ ${RESULT} = "0" ] || [ ${RESULT} = ${BASH_REMATCH[3]} ]; then
 		if [ $HTTPCHECK -eq 1 ]; then
