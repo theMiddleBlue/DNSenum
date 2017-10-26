@@ -11,6 +11,7 @@ DNSenum is a Bash script for DNS Enumeration. Try to resolve all subdomains of a
 + -n <dns server>   DNS Server to use for query
 + -c                Check for HTTP Server banner
 + -v                Check Domain on VirusTotal
++ -s                Set Shodan API Key in order to query it
 + -r <result>       Show only result that match <result>
 +
 ```

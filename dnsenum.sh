@@ -2,15 +2,18 @@
 
 MY_PATH="`dirname \"$0\"`"
 MY_PATH="`( cd \"$MY_PATH\" && pwd )`"
-DNSFILE="${MY_PATH}/subdomains-top1mil-5000.txt"
+DNSFILE="${MY_PATH}/wordlist/subdomains-top1mil-5000.txt"
 DNSSERVER=""
 DOMAIN="0"
 HTTPCHECK=0
 RESULT="0"
 VIRUSTOTAL=0
+SHODAN="apikey-here"
+
+source ${MY_PATH}/inc/bash_colors.sh
 
 echo -en "\n+\n"
-while getopts :hcvd:n:r: OPTION; do
+while getopts :hcvd:n:r:s: OPTION; do
 	case $OPTION in
 		d)
 			echo "+ Dns Enumeration for domain ${OPTARG}"
@@ -35,6 +38,10 @@ while getopts :hcvd:n:r: OPTION; do
 			echo "+ Check URL on VirusTotal"
 			VIRUSTOTAL=1
 		;;
+		s)
+			echo "+ Set Shodan API Key"
+			SHODAN="${OPTARG}"
+		;;
 		h)
 			echo "+ Usage: $0 -d <domain> [-f <file] [-n <dns server>] [-c]"
 			echo "+"
@@ -43,6 +50,7 @@ while getopts :hcvd:n:r: OPTION; do
 			echo "+ -n <dns server>  DNS Server to use for query"
 			echo "+ -c               Check for HTTP Server banner"
 			echo "+ -v               Check domain on VirusTotal"
+			echo "+ -s               Set Shodan API Key in order to query it"
 			echo "+ -r <result>      Show only result that match <result>"
 			echo -en "+\n\n"
 			exit 0
@@ -73,6 +81,57 @@ fi
 
 echo "+"
 echo ""
+
+if [ "${SHODAN}" != "apikey-here" ]; then
+	clr_red "+"
+	clr_red "+ Querying Shodan..."
+	SHCURL=$(curl -s 'https://api.shodan.io/shodan/host/search?key='${SHODAN}'&query=hostname:'${DOMAIN} | inc/JSON.sh | egrep 'hostnames.\]' | egrep -o '[a-zA-Z0-9\-\.]+\"\]$' | egrep -o '[a-zA-Z0-9\-\.]+')
+	clr_red "+ Result from Shodan:"
+	clr_red "+"
+
+	for element in $SHCURL
+	do
+		addelem=$(echo "${element}" | sed -e "s/.${DOMAIN}//g")
+		DNSRES=$(dig +noall +answer +nottlid +nocl ${element}${DNSSERVER} | head -1)
+
+		clr_red "trying ${element} ..." -n;
+
+		if [[ ${DNSRES} =~ $REGEX ]]; then
+			RES="${BASH_REMATCH[3]}"
+			if [[ "${WILDCARD}" = "${RES}" ]]; then
+				#echo "discard ${RES}"
+				echo -en "\033[K"
+				echo -en "\033[999D"
+			else
+				echo -en "\033[999D"
+				echo -en "\033[K"
+
+				if [ ${RESULT} = "0" ] || [ ${RESULT} = ${BASH_REMATCH[3]} ]; then
+					if [ $HTTPCHECK -eq 1 ]; then
+						echo -en "trying to connect to http://${addelem}.${DOMAIN} ..."
+						CURL=$(curl -s -I --connect-timeout 2 "http://${addelem}.${DOMAIN}" | grep -i "server:" | sed -e 's/Server: //g')
+						echo -en "\033[999D"
+						echo -en "\033[K"
+					fi
+
+					printf "%30b | %-20b | %-40b | %-10b" "\033[0;32m${addelem}\033[0m" "\033[1;34m${BASH_REMATCH[2]}\033[0m" "${BASH_REMATCH[3]}" "${CURL}"
+					echo ""
+				fi
+			fi
+		else
+			echo -en "\033[K"
+			echo -en "\033[999D"
+		fi
+
+	done
+	echo -en "\033[K"
+	echo -en "\033[999D"
+	echo "+"
+	echo "+ End Results from Shodan."
+	echo "+"
+	echo ""
+
+fi
 
 if [ $VIRUSTOTAL -eq 1 ]; then
 	echo "+"
@@ -105,8 +164,9 @@ if [ $VIRUSTOTAL -eq 1 ]; then
 						echo -en "\033[99D"
 						echo -en "\033[K"
 					fi
-	
-					printf "%20s | %-10s | %-30s | %-10s" "${addelem}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${CURL}"
+
+					#printf "%20s | %-10s | %-30s | %-10s" "${addelem}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${CURL}"
+					printf "%30b | %-20b | %-40b | %-10b" "\033[0;32m${addelem}\033[0m" "\033[1;34m${BASH_REMATCH[2]}\033[0m" "${BASH_REMATCH[3]}" "${CURL}"
 					echo ""
 				fi
 			fi
@@ -129,12 +189,13 @@ if [[ ${STARTRES} =~ $REGEX ]]; then
 	if [ ${RESULT} = "0" ] || [ ${RESULT} = ${BASH_REMATCH[3]} ]; then
 		if [ $HTTPCHECK -eq 1 ]; then
 			echo -en "trying to connect to http://${DOMAIN} ..."
-			CURL=$(curl -s -I --connect-timeout 2 "http://${DOMAIN}" | grep -i "server:" | sed -e 's/Server: //g')
+			CURL=$(curl -m 5 -s -I --connect-timeout 2 "http://${DOMAIN}" | grep -i "server:" | sed -e 's/Server: //g')
 			echo -en "\033[99D"
 			echo -en "\033[K"
 		fi
 
-		printf "%20s | %-10s | %-30s | %-10s" "${DOMAIN}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${CURL}"
+		#printf "%20s | %-10s | %-30s | %-10s" "${DOMAIN}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${CURL}"
+		printf "%30b | %-20b | %-40b | %-10b" "\033[0;32m${DOMAIN}\033[0m" "\033[1;34m${BASH_REMATCH[2]}\033[0m" "${BASH_REMATCH[3]}" "${CURL}"
 		echo ""
 	fi
 fi
@@ -157,12 +218,13 @@ while read line; do
 			if [ ${RESULT} = "0" ] || [ ${RESULT} = ${BASH_REMATCH[3]} ]; then
 				if [ $HTTPCHECK -eq 1 ]; then
 					echo -en "trying to connect to http://${line}.${DOMAIN} ..."
-					CURL=$(curl -s -I --connect-timeout 2 "http://${line}.${DOMAIN}" | grep -i "server:" | sed -e 's/Server: //g')
+					CURL=$(curl -m5 -s -I --connect-timeout 2 "http://${line}.${DOMAIN}" | grep -i "server:" | sed -e 's/Server: //g')
 					echo -en "\033[99D"
 					echo -en "\033[K"
 				fi
 
-				printf "%20s | %-10s | %-30s | %-10s" "${line}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${CURL}"
+				#printf "%20s | %-10s | %-30s | %-10s" "${line}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${CURL}"
+				printf "%30b | %-20b | %-40b | %-10b" "\033[0;32m${line}\033[0m" "\033[1;34m${BASH_REMATCH[2]}\033[0m" "${BASH_REMATCH[3]}" "${CURL}"
 				echo ""
 			fi
 		fi
