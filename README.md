@@ -63,3 +63,7 @@ Example using `-v` that check the domain on VirusTotal
                 blog | CNAME      | node1.waf.red.                 |
 trying www2...
 ```
+
+## video
+
+[video](https://github.com/GrayHats/DNSenum/raw/master/2018-08-23%2011.33.33.mp4)
