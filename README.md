@@ -64,6 +64,4 @@ Example using `-v` that check the domain on VirusTotal
 trying www2...
 ```
 
-## video
-
-[video](https://github.com/GrayHats/DNSenum/raw/master/2018-08-23%2011.33.33.mp4)
+[Example video](https://github.com/GrayHats/DNSenum/raw/master/2018-08-23%2011.33.33.mp4)
