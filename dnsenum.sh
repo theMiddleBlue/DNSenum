@@ -9,12 +9,13 @@ HTTPCHECK=0
 RESULT="0"
 VIRUSTOTAL=0
 SHODAN="apikey-here"
+THREADS=1
 
 source ${MY_PATH}/inc/bash_colors.sh
 
 echo -en "\n+\n"
 echo "+ DNSenum by theMiddle: https://github.com/theMiddleBlue/DNSenum"
-while getopts :hcvd:n:r:s: OPTION; do
+while getopts :hcvd:n:r:s:t:f: OPTION; do
 	case $OPTION in
 		d)
 			echo "+ Dns Enumeration for domain ${OPTARG}"
@@ -27,6 +28,19 @@ while getopts :hcvd:n:r:s: OPTION; do
 		n)
 			echo "+ Using DNS Server ${OPTARG}"
 			DNSSERVER=" @${OPTARG}"
+		;;
+		t)
+			if [[ $(($OPTARG)) =~ ^[\-0-9]+$ ]] && (( $((OPTARG)) > 0)); then
+				if [[ $(($OPTARG)) =~ ^[\-0-9]+$ ]] && (( $((OPTARG)) == 1)); then
+					echo "+ Running with ${OPTARG} thread"
+				else
+					echo "+ Running with ${OPTARG} threads"
+				fi
+			else
+				OPTARG="1"
+				echo "+ Running with ${OPTARG} thread"
+			fi
+			THREADS=${OPTARG}
 		;;
 		c)
 			HTTPCHECK=1
@@ -49,6 +63,7 @@ while getopts :hcvd:n:r:s: OPTION; do
 			echo "+ -d <domain>      Domain name to test"
 			echo "+ -f <file>        Subdomain list file to use for test"
 			echo "+ -n <dns server>  DNS Server to use for query"
+			echo "+ -t <threads>     Number of threads"
 			echo "+ -c               Check for HTTP Server banner"
 			echo "+ -v               Check domain on VirusTotal"
 			echo "+ -s               Set Shodan API Key in order to query it"
@@ -83,67 +98,75 @@ fi
 echo "+"
 echo ""
 
-if [ "${SHODAN}" != "apikey-here" ]; then
-	clr_red "+"
-	clr_red "+ Querying Shodan..."
-	SHCURL=$(curl -s 'https://api.shodan.io/shodan/host/search?key='${SHODAN}'&query=hostname:'${DOMAIN} | inc/JSON.sh | egrep 'hostnames.\]' | egrep -o '[a-zA-Z0-9\-\.]+\"\]$' | egrep -o '[a-zA-Z0-9\-\.]+')
-	clr_red "+ Result from Shodan:"
-	clr_red "+"
 
-	for element in $SHCURL
-	do
-		addelem=$(echo "${element}" | sed -e "s/.${DOMAIN}//g")
-		DNSRES=$(dig +noall +answer +nottlid +nocl ${element}${DNSSERVER} | head -1)
+evaluate_name() {
+	DNSRES=$(dig +noall +answer +nottlid +nocl ${line}.${DOMAIN}${DNSSERVER} | head -1)
 
-		clr_red "trying ${element} ..." -n;
-
-		if [[ ${DNSRES} =~ $REGEX ]]; then
-			RES="${BASH_REMATCH[3]}"
-			if [[ "${WILDCARD}" = "${RES}" ]]; then
-				#echo "discard ${RES}"
-				echo -en "\033[K"
-				echo -en "\033[999D"
-			else
-				echo -en "\033[999D"
-				echo -en "\033[K"
-
-				if [ ${RESULT} = "0" ] || [ ${RESULT} = ${BASH_REMATCH[3]} ]; then
-					if [ $HTTPCHECK -eq 1 ]; then
-						echo -en "trying to connect to http://${addelem}.${DOMAIN} ..."
-						CURL=$(curl -s -I --connect-timeout 2 "http://${addelem}.${DOMAIN}" | grep -i "server:" | sed -e 's/Server: //g')
-						echo -en "\033[999D"
-						echo -en "\033[K"
-					fi
-
-					printf "%30b | %-20b | %-40b | %-10b" "\033[0;32m${addelem}\033[0m" "\033[1;34m${BASH_REMATCH[2]}\033[0m" "${BASH_REMATCH[3]}" "${CURL}"
-					echo ""
-				fi
-			fi
+	if [[ ${DNSRES} =~ $REGEX ]]; then
+		RES="${BASH_REMATCH[3]}"
+		if [[ "${WILDCARD}" = "${RES}" ]]; then
+			#echo "discard ${RES}"
+			echo -en "\033[K"
+			echo -en "\033[99D"
 		else
+			echo -en "\033[99D"
+			echo -en "\033[K"
+
+			if [ ${RESULT} = "0" ] || [ ${RESULT} = ${BASH_REMATCH[3]} ]; then
+				if [ $HTTPCHECK -eq 1 ]; then
+					echo -en "trying to connect to http://${line}.${DOMAIN} ..."
+					CURL=$(curl -m5 -s -I --connect-timeout 2 "http://${line}.${DOMAIN}" | grep -i "server:" | sed -e 's/Server: //g')
+					echo -en "\033[99D"
+					echo -en "\033[K"
+				fi
+
+				#printf "%20s | %-10s | %-30s | %-10s" "${line}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${CURL}"
+				printf "%30b | %-20b | %-40b | %-10b" "\033[0;32m${line}\033[0m" "\033[1;34m${BASH_REMATCH[2]}\033[0m" "${BASH_REMATCH[3]}" "${CURL}"
+				echo ""
+			fi
+		fi
+	else
+		echo -en "\033[K"
+		echo -en "\033[99D"
+	fi
+}
+
+evaluate_shodan() {
+	addelem=$(echo "${element}" | sed -e "s/.${DOMAIN}//g")
+	DNSRES=$(dig +noall +answer +nottlid +nocl ${element}${DNSSERVER} | head -1)
+
+	clr_red "trying ${element} ..." -n;
+
+	if [[ ${DNSRES} =~ $REGEX ]]; then
+		RES="${BASH_REMATCH[3]}"
+		if [[ "${WILDCARD}" = "${RES}" ]]; then
+			#echo "discard ${RES}"
 			echo -en "\033[K"
 			echo -en "\033[999D"
+		else
+			echo -en "\033[999D"
+			echo -en "\033[K"
+
+			if [ ${RESULT} = "0" ] || [ ${RESULT} = ${BASH_REMATCH[3]} ]; then
+				if [ $HTTPCHECK -eq 1 ]; then
+					echo -en "trying to connect to http://${addelem}.${DOMAIN} ..."
+					CURL=$(curl -s -I --connect-timeout 2 "http://${addelem}.${DOMAIN}" | grep -i "server:" | sed -e 's/Server: //g')
+					echo -en "\033[999D"
+					echo -en "\033[K"
+				fi
+
+				printf "%30b | %-20b | %-40b | %-10b" "\033[0;32m${addelem}\033[0m" "\033[1;34m${BASH_REMATCH[2]}\033[0m" "${BASH_REMATCH[3]}" "${CURL}"
+				echo ""
+			fi
 		fi
+	else
+		echo -en "\033[K"
+		echo -en "\033[999D"
+	fi
+}
 
-	done
-	echo -en "\033[K"
-	echo -en "\033[999D"
-	clr_red "+"
-	clr_red "+ End Results from Shodan."
-	clr_red "+"
-	echo ""
-
-fi
-
-if [ $VIRUSTOTAL -eq 1 ]; then
-	clr_red "+"
-	clr_red "+ Querying VirusTotal..."
-	VTCURLPRE=$(curl -s -c vtcookie.txt -b vtcookie.txt -A "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36" "https://www.virustotal.com/en-gb/domain/${DOMAIN}/information/")
-	VTCURL=$(curl -s -c vtcookie.txt -b vtcookie.txt -A "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36" "https://www.virustotal.com/en-gb/domain/${DOMAIN}/information/" | egrep "\<a target\=.\_blank. href\=..en\-gb.domain" | awk 'BEGIN{FS="/"}{print $4}')
-	clr_red "+ Result from VirusTotal:"
-	clr_red "+"
-	for element in $VTCURL
-	do
-		addelem=$(echo "${element}" | sed -e "s/.${DOMAIN}//g")
+evaluate_virustotal() {
+	addelem=$(echo "${element}" | sed -e "s/.${DOMAIN}//g")
 		DNSRES=$(dig +noall +answer +nottlid +nocl ${element}${DNSSERVER} | head -1)
 
 		echo -en "trying ${element} ..."
@@ -175,7 +198,40 @@ if [ $VIRUSTOTAL -eq 1 ]; then
 			echo -en "\033[K"
 			echo -en "\033[99D"
 		fi
+}
 
+if [ "${SHODAN}" != "apikey-here" ]; then
+	clr_red "+"
+	clr_red "+ Querying Shodan..."
+	SHCURL=$(curl -s 'https://api.shodan.io/shodan/host/search?key='${SHODAN}'&query=hostname:'${DOMAIN} | inc/JSON.sh | egrep 'hostnames.\]' | egrep -o '[a-zA-Z0-9\-\.]+\"\]$' | egrep -o '[a-zA-Z0-9\-\.]+')
+	clr_red "+ Result from Shodan:"
+	clr_red "+"
+
+	for element in $SHCURL
+	do
+		((i=i%THREADS)); ((i++==0)) && wait
+		evaluate_shodan "$element" &
+	done
+	echo -en "\033[K"
+	echo -en "\033[999D"
+	clr_red "+"
+	clr_red "+ End Results from Shodan."
+	clr_red "+"
+	echo ""
+
+fi
+
+if [ $VIRUSTOTAL -eq 1 ]; then
+	clr_red "+"
+	clr_red "+ Querying VirusTotal..."
+	VTCURLPRE=$(curl -s -c vtcookie.txt -b vtcookie.txt -A "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36" "https://www.virustotal.com/en-gb/domain/${DOMAIN}/information/")
+	VTCURL=$(curl -s -c vtcookie.txt -b vtcookie.txt -A "Mozilla/5.0 (Windows NT 6.1) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2228.0 Safari/537.36" "https://www.virustotal.com/en-gb/domain/${DOMAIN}/information/" | egrep "\<a target\=.\_blank. href\=..en\-gb.domain" | awk 'BEGIN{FS="/"}{print $4}')
+	clr_red "+ Result from VirusTotal:"
+	clr_red "+"
+	for element in $VTCURL
+	do
+		((i=i%THREADS)); ((i++==0)) && wait
+		evaluate_virustotal "$element" &
 	done
 	clr_red "+"
 	clr_red "+ End Results from VirusTotal."
@@ -202,35 +258,6 @@ if [[ ${STARTRES} =~ $REGEX ]]; then
 fi
 
 while read line; do
-	DNSRES=$(dig +noall +answer +nottlid +nocl ${line}.${DOMAIN}${DNSSERVER} | head -1)
-
-	echo -en "trying ${line} ..."
-
-	if [[ ${DNSRES} =~ $REGEX ]]; then
-		RES="${BASH_REMATCH[3]}"
-		if [[ "${WILDCARD}" = "${RES}" ]]; then
-			#echo "discard ${RES}"
-			echo -en "\033[K"
-			echo -en "\033[99D"
-		else
-			echo -en "\033[99D"
-			echo -en "\033[K"
-
-			if [ ${RESULT} = "0" ] || [ ${RESULT} = ${BASH_REMATCH[3]} ]; then
-				if [ $HTTPCHECK -eq 1 ]; then
-					echo -en "trying to connect to http://${line}.${DOMAIN} ..."
-					CURL=$(curl -m5 -s -I --connect-timeout 2 "http://${line}.${DOMAIN}" | grep -i "server:" | sed -e 's/Server: //g')
-					echo -en "\033[99D"
-					echo -en "\033[K"
-				fi
-
-				#printf "%20s | %-10s | %-30s | %-10s" "${line}" "${BASH_REMATCH[2]}" "${BASH_REMATCH[3]}" "${CURL}"
-				printf "%30b | %-20b | %-40b | %-10b" "\033[0;32m${line}\033[0m" "\033[1;34m${BASH_REMATCH[2]}\033[0m" "${BASH_REMATCH[3]}" "${CURL}"
-				echo ""
-			fi
-		fi
-	else
-		echo -en "\033[K"
-		echo -en "\033[99D"
-	fi
+	((i=i%THREADS)); ((i++==0)) && wait
+	evaluate_name "$line" &
 done<$DNSFILE
