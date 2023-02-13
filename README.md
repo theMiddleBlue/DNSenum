@@ -9,6 +9,7 @@ DNSenum is a Bash script for DNS Enumeration. Try to resolve all subdomains of a
 + -d <domain>       Domain name to test
 + -f <file>         Subdomain list file to use for test
 + -n <dns server>   DNS Server to use for query
++ -t <threads>      Number of threads
 + -c                Check for HTTP Server banner
 + -v                Check Domain on VirusTotal
 + -s                Set Shodan API Key in order to query it
